@@ -1,0 +1,279 @@
+import java.util.HashSet;
+
+action code {:
+    SpeakNowFunctions sFunctions = new SpeakNowFunctions();
+ :}
+
+
+parser code {:
+
+/* Overiding this method so it could say the column number of the error as well 
+   as display the error on the calculator screen */
+
+    public void report_error(String message, Object info) {
+   	   String m = "";
+   	   if((info instanceof java_cup.runtime.Symbol) && ((java_cup.runtime.Symbol)info).value != null){
+        	m = new String("Syntax Error " + ((java_cup.runtime.Symbol)info).value.toString());
+   	   } else {
+   	   	m = new String("Syntax Error ");
+   	   }
+        java_cup.runtime.Symbol s = ((java_cup.runtime.Symbol) info);
+               
+        /* Add to the end of the StringBuffer error message
+            the column number of the error in the input. */
+        
+        m = m + ": column "+ (s.right);
+        Utilities.thereWasError  = true;      
+  
+        /* Print the contents of the StringBuffer 'm', which contains
+           an error message, out on the screen. */
+        EpistemicKeypad.displayTextField.setText(m.toString());
+
+	  
+    }
+:};
+
+
+//terminal DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, TRUE, FALSE;
+terminal String PLUS, MINUS, MULTIPLY, DIVIDE, SQUAREROOT, SQUARE, LPAREN, RPAREN, BRACKET, SEMI;
+terminal String DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, NOTEQUAL, AND, OR, IMPLIES, NOT, MOD;
+terminal String KNOWS, DISTKNOWLEDGE, EVERYBODYKNOWS;
+terminal String IDENTIFIER, ATOM_IDENTIFIER;
+terminal Integer INTEGER;
+terminal Double  DOUBLE;
+terminal Boolean TRUE, FALSE;
+
+/* Non-terminals */
+non terminal Object[] statement;
+non terminal String boolean_expr, arithmetic_expr, term, unary_expr, phi, leaf; 
+non terminal Double dynamic_expr; 
+non terminal Object[] epistemic_expr;
+
+
+
+/* Precedences */
+precedence nonassoc LPAREN, RPAREN;
+precedence right NOT;
+
+precedence right KNOWS, DISTKNOWLEDGE, EVERYBODYKNOWS;
+precedence right SQUARE;
+precedence right SQUAREROOT;
+precedence left MULTIPLY, DIVIDE, MOD;
+precedence left PLUS, MINUS;
+
+precedence left DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, NOTEQUAL;
+
+precedence left AND, OR;
+precedence left IMPLIES;
+
+
+
+statement ::= epistemic_expr:ee
+		   {:
+		   	// here check if the returned set contains the state(s) in question
+		   	 RESULT = ee;
+		   :} SEMI
+		   | boolean_expr:be 
+		   {: 
+		   	 RESULT = Utilities.solveGlobalBooleanExpressionMC(be);
+		   :} SEMI   
+		   | boolean_expr:be AND epistemic_expr:ee
+		   {:
+		   	Object[] obj = Utilities.solveGlobalBooleanExpressionMC(be);
+		   	ee = Utilities.epistemicExpressionANDMC(obj, ee);
+		   	RESULT = ee;
+		   	
+		   :} SEMI
+		   | boolean_expr:be OR epistemic_expr:ee
+		   {:
+		   	Object[] obj = Utilities.solveGlobalBooleanExpressionMC(be);
+		   	ee = Utilities.epistemicExpressionORMC(obj, ee);
+		   	RESULT = ee;
+		   :} SEMI
+		   | boolean_expr:be IMPLIES epistemic_expr:ee
+		   {:
+		   	Object[] obj = Utilities.solveGlobalBooleanExpressionMC(be);
+		   	ee = Utilities.epistemicExpressionIMPLIESMC(obj, ee);
+		   	RESULT = ee;
+		   :} SEMI;
+		    
+		   
+//static_constraint ::=  CONSTRAINTKW boolean_expr SEMI;   // e.g x < y;
+//dynamic_constraint ::= CONSTRAINTKW INTEGER:id EQUALS expr:e {: RESULT = new Double(e.doubleValue()); :}  SEMI  //e.g sum = x + y;
+//				|  CONSTRAINTKW INTEGER:id EQUALS boolean_expr:e {: RESULT = e.booleanValue(); :}  SEMI;   // sum = x < y;
+
+epistemic_expr ::= IDENTIFIER:id KNOWS epistemic_expr:epe  
+			  {: 
+			  	// access the set S of all states where lower epistemic expressions are true
+			  	// for each of all states w, select those states in which the given agent has all its accessibilities (without excetption) in the set S 
+			  	//i.e. if all w's successor states (following the accessibility of the agent in question) are a subset of S...then select w
+			  	RESULT = Utilities.knowsEpistemicExpressionMC(id, epe);
+			  :}
+			  | IDENTIFIER:id NOT KNOWS epistemic_expr:epe  
+			  {: 
+			  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTKNOWSEPIEXPRMC(id, epe);
+			  
+			  :}
+			  | epistemic_expr:ep AND epistemic_expr:epe 
+			  {: 
+			  	
+		  	  	RESULT = Utilities.epistemicExpressionANDMC(ep, epe);
+			  :}
+		   	  | epistemic_expr:ep OR epistemic_expr:epe 
+		   	  {: 
+		   	  	RESULT = Utilities.epistemicExpressionORMC(ep, epe);
+		   	  :}
+		   	  | epistemic_expr:ep IMPLIES epistemic_expr:epe 
+		   	  {: 
+		   	  	
+		  	  	RESULT = Utilities.epistemicExpressionIMPLIESMC(ep, epe);
+		   	  
+		   	  :}
+		   	  | LPAREN epistemic_expr:ep RPAREN 
+		   	  {: 
+		   	  	RESULT = ep; 
+		   	  :}
+		  	  | IDENTIFIER:id KNOWS boolean_expr:be 
+		  	  {: 
+		  	  
+		  	  	RESULT = Utilities.knowsBooleanExpressionMC(id, be);
+		       
+		  	  :} 
+		  	  | IDENTIFIER:id NOT KNOWS boolean_expr:be 
+		  	  {:  
+		  	  		  	  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTKNOWSBEMC(id, be);
+		  	  	
+		  	  :}
+		  	  | IDENTIFIER:ag KNOWS BRACKET phi:p BRACKET
+		  	  {: 
+		  	  	RESULT = Utilities.knowsPHIExpressionMC(ag, p);
+		  	  :} 
+		  	  | IDENTIFIER:ag NOT KNOWS BRACKET phi:p BRACKET
+		  	  {: 
+		  	  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTKNOWSPHI(ag, p);
+		  	  :}
+		  	  | EVERYBODYKNOWS epistemic_expr:epe  
+			  {: 
+			  	
+			  	RESULT = Utilities.everyBodyKnowsEpistemicExpressionMC(epe);
+			  :}
+			  | NOT EVERYBODYKNOWS epistemic_expr:epe  
+			  {: 
+			  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTEveryBodyKnowsEPIEXPRMC(epe);
+			  
+			  :}
+		  	  | EVERYBODYKNOWS boolean_expr:be 
+		  	  {: 
+		  	  
+		  	  	RESULT = Utilities.everyBodyKnowsBooleanExpressionMC(be);
+		       
+		  	  
+		  	  :} 
+		  	  | NOT EVERYBODYKNOWS boolean_expr:be 
+		  	  {:  
+		  	  		  	  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTEveryBodyKNOWSBEMC(be);
+		  	  	
+		  	  :}
+		  	  | EVERYBODYKNOWS BRACKET phi:p BRACKET
+		  	  {: 
+		  	  	RESULT = Utilities.everyBodyKnowsPHIExpressionMC(p);
+		  	  :} 
+		  	  | NOT EVERYBODYKNOWS BRACKET phi:p BRACKET
+		  	  {: 
+		  	  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTEveryBodyKNOWSPHIMC(p);
+		  	  :}
+		  	   | DISTKNOWLEDGE epistemic_expr:epe  
+			  {: 
+			  	
+			  	RESULT = Utilities.distKnowsEpistemicExpressionMC(epe);
+			  :}
+			  | NOT DISTKNOWLEDGE epistemic_expr:epe  
+			  {: 
+			  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTDistKnowsEPIEXPRMC(epe);
+			  
+			  :}
+		  	  | DISTKNOWLEDGE boolean_expr:be 
+		  	  {: 
+		  	  
+		  	  	RESULT = Utilities.distKnowsBooleanExpressionMC(be);
+		       
+		  	  
+		  	  :} 
+		  	  | NOT DISTKNOWLEDGE boolean_expr:be 
+		  	  {:  
+		  	  		  	  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTDistKNOWSBEMC(be);
+		  	  	
+		  	  :}
+		  	  | DISTKNOWLEDGE BRACKET phi:p BRACKET
+		  	  {: 
+		  	  	RESULT = Utilities.distKnowsPHIExpressionMC(p);
+		  	  :} 
+		  	  | NOT DISTKNOWLEDGE BRACKET phi:p BRACKET
+		  	  {: 
+		  	  	
+		  	  	RESULT = Utilities.epistemicExpressionNOTDistKNOWSPHIMC(p);
+		  	  :};
+
+phi ::= phi:p1 AND phi:p2 {: RESULT = p1.concat("&&").concat(p2); :}
+	 | phi:p1 OR phi:p2 {: RESULT = p1.concat("||").concat(p2); :}
+	 | phi:p1 IMPLIES phi:p2 {: RESULT = p1.concat("->").concat(p2); :}
+	 | NOT phi:p {: RESULT = "!".concat(p); :}
+	 | IDENTIFIER:id {: RESULT = id; :}
+	 | LPAREN phi:p RPAREN {: RESULT = "(".concat(p).concat(")"); :};
+		  	    
+
+boolean_expr ::=  boolean_expr:be AND boolean_expr:t  {: RESULT = be.concat("&&").concat(t); :}
+			| boolean_expr:be OR boolean_expr:t {: RESULT = be.concat("||").concat(t); :}
+			| boolean_expr:be IMPLIES boolean_expr:t  {: RESULT = be.concat("->").concat(t); :}		
+			| arithmetic_expr:e DOUBLEEQUALS arithmetic_expr:t  {: RESULT = e.concat("==").concat(t); :}
+			| arithmetic_expr:e DOUBLEEQUALS boolean_expr:t  {: RESULT = e.concat("==").concat(t); :}
+			| arithmetic_expr:e LESSTHAN  arithmetic_expr:t  {: RESULT = e.concat("<").concat(t); :} 
+			| arithmetic_expr:e LESSTHANEQUAL arithmetic_expr:t  {: RESULT = e.concat("<=").concat(t); :} 
+			| arithmetic_expr:e GREATERTHAN  arithmetic_expr:t  {: RESULT = e.concat(">").concat(t); :}
+			| arithmetic_expr:e GREATERTHANEQUAL arithmetic_expr:t  {: RESULT = e.concat(">=").concat(t); :}
+			| arithmetic_expr:e NOTEQUAL arithmetic_expr:t  {: RESULT = e.concat("!=").concat(t); :}
+			| arithmetic_expr:e NOTEQUAL boolean_expr:t  {: RESULT = e.concat("!=").concat(t); :}	
+			| NOT boolean_expr:be {: RESULT = "!".concat(be); :}
+			| TRUE {: RESULT = "true"; :}
+			| FALSE {: RESULT = "false"; :}
+			| LPAREN boolean_expr:be RPAREN  {: RESULT = "(".concat(be).concat(")"); :};
+			
+			
+arithmetic_expr ::= arithmetic_expr:e PLUS term:t {: RESULT = e.concat("+").concat(t); :} 
+	  | arithmetic_expr:e MINUS term:t {: RESULT = e.concat("-").concat(t); :}
+	  | term:t {: RESULT = t; :}; 
+
+
+term ::= term:t MULTIPLY unary_expr:ue {: RESULT = t.concat("*").concat(ue); :}
+	  |term:t DIVIDE unary_expr:ue {: RESULT = t.concat("/").concat(ue); :}	// this is one reason for making all these double
+	  |term:t MOD unary_expr:ue {: RESULT = t.concat("|").concat(ue); :}
+	  |unary_expr:ue {: RESULT = ue; :};
+
+//unary_expr ::= UNARYMINUS unary_second_expr:us
+//            {:RESULT = new Double(0 - us.doubleValue());:}
+//            |unary_second_expr:us
+//            {:RESULT = us;:};
+
+unary_expr ::= SQUAREROOT unary_expr:ue {: RESULT = "sqrt".concat(ue); :}
+           | SQUARE unary_expr:ue  {: RESULT = "sqr".concat(ue); :}
+           | leaf:l  {: RESULT = l; :};
+
+leaf ::= IDENTIFIER:id    // HERE'S THE MAIN DIFFERENCE BECAUSE WE ARE DEALING WITH VARIABLES   
+        {: 
+        RESULT = id;
+        Utilities.inConstraintIdentifiers.add(id); 
+        :}
+        | DOUBLE:id    // HERE'S THE MAIN DIFFERENCE BECAUSE WE ARE DEALING WITH VARIABLES   
+        {: 
+        RESULT = id.toString(); 
+        :}
+	   | LPAREN arithmetic_expr:be RPAREN  {: RESULT = "(".concat(be).concat(")"); :};
+	   

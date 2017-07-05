@@ -1,0 +1,160 @@
+
+action code {:
+    SpeakNowFunctions sFunctions = new SpeakNowFunctions();
+ :}
+
+
+//terminal DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, TRUE, FALSE;
+terminal PLUS, MINUS, MULTIPLY, DIVIDE, SQUAREROOT, SQUARE, LPAREN, RPAREN, SEMI;
+terminal DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, NOTEQUAL, AND, OR, IMPLIES, NOT, MOD;
+terminal Integer INTEGER;
+terminal Double DOUBLE;
+terminal String IDENTIFIER;
+terminal Boolean TRUE, FALSE;
+
+/* Non-terminals */
+non terminal Object statement;
+non terminal Boolean boolean_expr; 
+non terminal Double dynamic_expr, arithmetic_expr, term, unary_expr, leaf; 
+
+/* Precedences */
+precedence nonassoc LPAREN, RPAREN;
+precedence right NOT;
+
+precedence right SQUARE;
+precedence right SQUAREROOT;
+
+precedence left AND, OR;
+precedence left IMPLIES;
+precedence left MULTIPLY, DIVIDE, MOD;
+precedence left PLUS, MINUS;
+
+precedence left DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, NOTEQUAL;
+
+
+statement ::= boolean_expr:be {: RESULT = (Boolean)be; :} SEMI   
+		   | arithmetic_expr:e {: RESULT = e; :} SEMI; 
+		   
+//static_constraint ::=  CONSTRAINTKW boolean_expr SEMI;   // e.g x < y;
+//dynamic_constraint ::= CONSTRAINTKW INTEGER:id EQUALS expr:e {: RESULT = new Double(e.doubleValue()); :}  SEMI  //e.g sum = x + y;
+//				|  CONSTRAINTKW INTEGER:id EQUALS boolean_expr:e {: RESULT = e.booleanValue(); :}  SEMI;   // sum = x < y;
+
+  
+
+
+boolean_expr ::= arithmetic_expr:e DOUBLEEQUALS arithmetic_expr:t 
+			{: if(e.doubleValue() == t.doubleValue()) RESULT = true; else RESULT = false; :}
+			| boolean_expr:e DOUBLEEQUALS boolean_expr:t 
+			{: if(e.booleanValue() == t.booleanValue()) RESULT = true; else RESULT = false; :}  // to cover for cases like true == true ?
+			| boolean_expr:e NOTEQUAL boolean_expr:t 
+			{: if(e.booleanValue() != t.booleanValue()) RESULT = true; else RESULT = false; :}  // to cover for cases like true == true ?
+			| arithmetic_expr:e LESSTHAN arithmetic_expr:t 
+			{: if(e.doubleValue() < t.doubleValue()) RESULT = true; else RESULT = false; :}
+			| arithmetic_expr:e LESSTHANEQUAL arithmetic_expr:t 
+			{: if(e.doubleValue() <= t.doubleValue()) RESULT = true; else RESULT = false; :}
+			| arithmetic_expr:e GREATERTHAN arithmetic_expr:t 
+			{: if(e.doubleValue() > t.doubleValue()) RESULT = true; else RESULT = false; :}
+			| arithmetic_expr:e GREATERTHANEQUAL arithmetic_expr:t 
+			{: if(e.doubleValue() >= t.doubleValue()) RESULT = true; else RESULT = false; :}
+			| arithmetic_expr:e NOTEQUAL arithmetic_expr:t 
+			{: if(e.doubleValue() != t.doubleValue()) RESULT = true; else RESULT = false; :}
+			| boolean_expr:be AND boolean_expr:t 
+			{: if(be.booleanValue() && t.booleanValue()) RESULT = true; else RESULT = false; :}
+			| boolean_expr:be OR boolean_expr:t 
+			{: if(be.booleanValue() || t.booleanValue()) RESULT = true; else RESULT = false; :}
+			| boolean_expr:be IMPLIES boolean_expr:t 
+			{: if(!be.booleanValue() || t.booleanValue()) RESULT = true; else RESULT = false; :}
+			| NOT boolean_expr:be
+			{: if(be.booleanValue()) RESULT = false; else RESULT = true; :}
+			| IDENTIFIER:id DOUBLEEQUALS IDENTIFIER:idd
+		    {: 
+		    		if(id.equalsIgnoreCase(idd)){
+		    			RESULT = true;
+		    		} else {
+		    			RESULT = false;
+		    		}
+		    :}	
+		    | IDENTIFIER:id NOTEQUAL IDENTIFIER:idd
+		    {: 
+		    		if(!id.equalsIgnoreCase(idd)){
+		    			RESULT = true;
+		    		} else {
+		    			RESULT = false;
+		    		}
+		    :}	
+		    | IDENTIFIER:id LESSTHAN IDENTIFIER:idd
+		    {: 
+		    		if(id.compareToIgnoreCase(idd) > 0){
+		    			RESULT = true;
+		    		} else {
+		    			RESULT = false;
+		    		}
+		    :}	
+		    | IDENTIFIER:id GREATERTHAN IDENTIFIER:idd
+		     {: 
+		    		if(id.compareToIgnoreCase(idd) < 0){
+		    			RESULT = true;
+		    		} else {
+		    			RESULT = false;
+		    		}
+		    :}	
+		    | IDENTIFIER:id LESSTHANEQUAL IDENTIFIER:idd
+		     {: 
+		    		if(id.compareToIgnoreCase(idd) >= 0){
+		    			RESULT = true;
+		    		} else {
+		    			RESULT = false;
+		    		}
+		    :}	
+		    | IDENTIFIER:id GREATERTHANEQUAL IDENTIFIER:idd
+		    {: 
+		    		if(id.compareToIgnoreCase(idd) <= 0){
+		    			RESULT = true;
+		    		} else {
+		    			RESULT = false;
+		    		}
+		    :}
+		     | TRUE 
+			{: RESULT = true; :}
+			| FALSE 
+			{: RESULT = false; :}
+			| LPAREN boolean_expr:be RPAREN 
+	   		{: RESULT = be; :};
+
+	    	   		
+			
+arithmetic_expr ::= arithmetic_expr:e {: System.out.println("found expression"); :} PLUS {: System.out.println("found plus"); :} term:t 
+	  {: System.out.println("found term"); RESULT = new Double(e.doubleValue() + t.doubleValue()); :}
+	  | arithmetic_expr:e MINUS term:t
+	  {: RESULT = new Double(e.doubleValue() - t.doubleValue()); :}
+	  | term:t
+	  {: RESULT = t; :};
+
+
+term ::= term:t MULTIPLY unary_expr:u
+	  {: RESULT = new Double(t.doubleValue() * u.doubleValue()); :}
+	  | term:t DIVIDE unary_expr:u 					// this is one reason for making all these double
+	  {: RESULT = new Double(t.doubleValue() / u.doubleValue()); :}
+	  | term:t MOD unary_expr:u 					// this is one reason for making all these double
+	  {: RESULT = new Double(t.doubleValue() % u.doubleValue()); :}
+	  | unary_expr:u
+	  {: RESULT = u; :};
+
+//unary_expr ::= UNARYMINUS unary_second_expr:us
+//            {:RESULT = new Double(0 - us.doubleValue());:}
+//            |unary_second_expr:us
+//            {:RESULT = us;:};
+
+//WE DO NOT HAVE YET SUPPORT FOR UNARY MINUS, in other words no support for explicit negative numbers yet
+unary_expr ::= SQUARE unary_expr:u 
+           {: RESULT =  sFunctions.xSquare(u); :}
+           | SQUAREROOT leaf:b
+           {: RESULT =  sFunctions.squareRoot(b); :}
+           | leaf:b
+           {: RESULT = b; :};
+
+
+leaf ::= DOUBLE:d    // HERE'S THE MAIN DIFFERENCE BECAUSE WE ARE DEALING WITH VARIABLES   
+        {: System.out.println("found Double in leaf"); RESULT = d;  :}
+	   | LPAREN arithmetic_expr:e RPAREN 
+	   {: RESULT = e; :};

@@ -1,0 +1,303 @@
+
+
+action code {: 
+
+:};
+/* Preliminaries to set up and use the scanner.  */
+//init with {: ArrayList<String> boolNamesList = new ArrayList<String>(); :};
+//scan with {: return scanner.next_token(); :};
+
+/* Terminals (tokens returned by the scanner). */
+//terminal           SEMI, PLUS, MINUS, TIMES, DIVIDE, MOD;
+//terminal           UMINUS, LPAREN, RPAREN;
+
+terminal BOOLEAN;
+terminal String ATOM_IDENTIFIER, AGENT_IDENTIFIER, IDENTIFIER;
+terminal Integer INTEGER;
+terminal Double  DOUBLE;
+terminal AGENT, KNOWS, DISTKNOWLEDGE, EVERYBODYKNOWS, OBSERVES, INT, ENUM, CONSTRAINT_KW, DYNAMIC_KW, EPISTEMIC_KW, TRUE, FALSE;
+terminal EQUALS, MULTIPLY, DIVIDE, PLUS, MINUS, SQUAREROOT, SQUARE;
+terminal DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, NOTEQUAL, AND, OR, IMPLIES, NOT, MOD;
+terminal BEGIN, END, SEMI, LPAREN, RPAREN, LBRACKET,  RBRACKET, COMMA;
+
+/* Non-terminals */
+non terminal goal, del_code;
+non terminal atoms, agents, facts;
+non terminal atom_declaration_list, agent_declaration_list, fact_list;
+non terminal atom_declaration, agent_declaration, fact;
+non terminal bool_declaration, int_declaration, enum_declaration;
+non terminal String enum_values_list, enum_value;
+non terminal concrete_atom_expr, numeric_expr;
+non terminal value;
+non terminal propositional_constraint, epistemic_constraint, static_constraint, dynamic_constraint;
+non terminal String expr, term, unary_expr;  //merely capture these as strings
+non terminal String epistemic_fact, boolean_expr, epistemic_property; 
+non terminal String leaf; 
+non terminal String kexpression, phi;
+
+/* Precedences */
+//precedence left NOT;
+/* Precedences */
+/* Precedences */
+precedence nonassoc LPAREN, RPAREN;
+precedence right NOT;
+
+precedence right SQUARE;
+precedence right SQUAREROOT;
+precedence left AND, OR;
+precedence left IMPLIES;
+
+precedence left MULTIPLY, DIVIDE, MOD;
+precedence left PLUS, MINUS;
+
+precedence left DOUBLEEQUALS, LESSTHAN, LESSTHANEQUAL, GREATERTHAN, GREATERTHANEQUAL, NOTEQUAL;
+
+
+/* The grammar */
+goal ::= BEGIN del_code 
+{:
+
+    // Now, we'll draw the graph
+    //Generate the .dot file from which the DOT engine now draws the graph
+    Utilities.generateGraph();
+    Utilities.solveEpistemicConstraints();
+    Utilities.generateDot();
+    
+	//Display stateLabelMap
+    Utilities.displayStateLabelMap();
+    
+    //Display varValuesStateMap
+    Utilities.displayVarValuesStateMap();
+
+:}
+
+END;
+
+del_code ::= atoms {: 
+
+	//handle the atom declarations...
+	//Utilities.processAtoms();
+	
+:} agents {:
+
+
+:}  facts {:
+	//handle the atom declarations...I put it here so the constraints would have been known at the time the atoms are processed for state values generation
+	Utilities.processAtoms();
+
+:} ;
+		 
+atoms ::= atom_declaration_list;
+atom_declaration_list ::= atom_declaration_list atom_declaration 
+					   | atom_declaration;
+		
+					   
+atom_declaration ::= bool_declaration SEMI
+		 	    | int_declaration SEMI
+		 	    | enum_declaration SEMI;
+
+	      
+bool_declaration ::= BOOLEAN ATOM_IDENTIFIER:boolId 
+		{:
+		// process the declaration of boolean type atoms
+		 Utilities.processBoolDeclaration(boolId);  
+		 
+   		:} ;
+   
+int_declaration ::= INT ATOM_IDENTIFIER:intId LPAREN DOUBLE:lowerLimit COMMA DOUBLE:upperLimit RPAREN 
+		  {:
+			// process the declaration of boolean type atoms
+		 	Utilities.processIntDeclaration(intId, lowerLimit, upperLimit); 
+		 :};
+		 
+enum_declaration ::= ENUM ATOM_IDENTIFIER:enumId LPAREN enum_values_list:evl RPAREN 
+		  {:
+			// process the declaration of boolean type atoms
+		 	Utilities.processEnumDeclaration(enumId, evl); 
+		 :};
+
+enum_values_list ::= enum_values_list:evl COMMA enum_value:ev
+				{:
+					//each time we find an enum value (string) we add it to the list of possible values (in the symbol table) for the concerned enum variable
+					RESULT = evl.concat(",").concat(ev);
+				:}
+				| enum_value:ev
+				{:
+					RESULT = ev;
+				:};
+				
+enum_value ::= IDENTIFIER:s   // not placing the IDENTIFIER directly under "enum_values_list" to facilitate adding more types of enum values (other than the string IDENTIFIER) if need be later...
+			{:
+				//each time we find an enum value (string) we add it to the list of possible values (in the symbol table) for the concerned enum variable
+				RESULT = s;
+			:};
+		 
+//			   | INT ATOM_IDENTIFIER EQUALS numeric_expr;
+//
+//numeric_expr ::= numeric_expr MULTIPLY numeric_expr 
+//			| numeric_expr DIVIDE numeric_expr 
+//			| numeric_expr PLUS numeric_expr 
+//			| numeric_expr MINUS numeric_expr 
+//			| INTEGER; 
+
+agents ::= agent_declaration_list;
+agent_declaration_list ::= agent_declaration_list agent_declaration 
+				     | agent_declaration;
+				     
+agent_declaration ::= AGENT AGENT_IDENTIFIER:agentId {:
+	
+	//handle agent declaration
+	Utilities.processAgentDeclaration(agentId);
+
+:} SEMI;
+ 
+facts ::= fact_list;
+fact_list ::= fact_list fact 
+		  | fact;
+fact ::= epistemic_constraint 
+	 | propositional_constraint;
+	 
+epistemic_constraint ::= EPISTEMIC_KW CONSTRAINT_KW epistemic_property:ep
+				  {:
+				  	//Add this to the list of epistemic constraints
+				  	ep = "{".concat(ep).concat(";}");   // terminates one constraint, and surrounds with delimiters so the one scanner used of epistemic constraint evaluator will know when to switch to a different state, and so be able to use a different sym class (ECESym) -- this was the same strategy we used for constraint evaluator (boolean)
+				  	Utilities.processEpistemicFacts(ep);
+				  	
+				  :} SEMI
+				  | IDENTIFIER:agId OBSERVES IDENTIFIER:knId 
+		 		  {: 
+					   //now handle the facts section
+					   Utilities.processFacts(agId, knId);  	
+				  
+				  :} SEMI;  // OBSERVES operator tells us the atom that a given agent is in control of...;
+			
+				  
+epistemic_property ::= boolean_expr:be AND epistemic_fact:ef 
+				 {:
+				 	System.out.println("here I go+++++++++++++++++");
+				 	RESULT = be.concat("&&").concat(ef);
+				 
+				 :}
+				 | boolean_expr:be OR epistemic_fact:ef
+				  {:
+				 	RESULT = be.concat("||").concat(ef);
+				 
+				 :}
+				 | boolean_expr:be IMPLIES epistemic_fact:ef
+				  {:
+				 	RESULT = be.concat("->").concat(ef);
+				 
+				 :}
+				 | epistemic_fact:ef
+				  {:
+				 	RESULT = ef;
+				 
+				 :};
+	 
+epistemic_fact ::= IDENTIFIER:id KNOWS epistemic_fact:efact  {: RESULT = id.concat("@").concat(efact); :}
+			  | IDENTIFIER:id NOT KNOWS epistemic_fact:efact  {: RESULT = id.concat("!@").concat(efact); :}
+			  | epistemic_fact:ef AND epistemic_fact:efact {: RESULT = ef.concat("&&").concat(efact); :}
+		   	  | epistemic_fact:ef OR epistemic_fact:efact {: RESULT = ef.concat("||").concat(efact); :}
+		   	  | epistemic_fact:ef IMPLIES epistemic_fact:efact {: RESULT = ef.concat("->").concat(efact); :}
+		   	  | LPAREN epistemic_fact:ef RPAREN {: RESULT = "(".concat(ef).concat(")"); :}
+		  	  | IDENTIFIER:id KNOWS boolean_expr:be {: RESULT = id.concat("@").concat(be); :} 
+		  	  | IDENTIFIER:id NOT KNOWS boolean_expr:be {: RESULT = id.concat("!@").concat(be); :} 
+		  	  | IDENTIFIER:ag KNOWS LBRACKET phi:p RBRACKET {: RESULT = ag.concat("@[").concat(p).concat("]"); :} 
+		  	  | IDENTIFIER:ag NOT KNOWS LBRACKET phi:p RBRACKET {: RESULT = ag.concat("!@[").concat(p).concat("]"); :}
+		  	  | EVERYBODYKNOWS epistemic_fact:epe  {: RESULT = "#".concat(epe); :}
+			  | NOT EVERYBODYKNOWS epistemic_fact:epe  {: RESULT = "!#".concat(epe); :}
+		  	  | EVERYBODYKNOWS boolean_expr:be {: RESULT = "#".concat(be); :} 
+		  	  | NOT EVERYBODYKNOWS boolean_expr:be {: RESULT = "!#".concat(be); :}
+		  	  | EVERYBODYKNOWS LBRACKET phi:p RBRACKET {: RESULT = "#[".concat(p).concat("]"); :} 
+		  	  | NOT EVERYBODYKNOWS LBRACKET phi:p RBRACKET {: RESULT = "!#[".concat(p).concat("]"); :}
+		  	  | DISTKNOWLEDGE epistemic_fact:epe {: RESULT = ":>".concat(epe); :}
+			  | NOT DISTKNOWLEDGE epistemic_fact:epe {: RESULT = "!:>".concat(epe); :}
+		  	  | DISTKNOWLEDGE boolean_expr:be {: RESULT = ":>".concat(be); :} 
+		  	  | NOT DISTKNOWLEDGE boolean_expr:be {: RESULT = "!:>".concat(be); :}
+		  	  | DISTKNOWLEDGE LBRACKET phi:p RBRACKET {: RESULT = ":>[".concat(p).concat("]"); :} 
+		  	  | NOT DISTKNOWLEDGE LBRACKET phi:p RBRACKET {: RESULT = "!:>[".concat(p).concat("]"); :};
+	 		  
+	  
+phi ::= phi:p1 AND phi:p2 {: RESULT = p1.concat("&&").concat(p2); :}
+	 | phi:p1 OR phi:p2 {: RESULT = p1.concat("||").concat(p2); :}
+	 | phi:p1 IMPLIES phi:p2 {: RESULT = p1.concat("->").concat(p2); :}
+	 | NOT phi:p {: RESULT = "!".concat(p); :}
+	 | IDENTIFIER:id {: RESULT = id; :}
+	 | LPAREN phi:p RPAREN {: RESULT = "(".concat(p).concat(")"); :};
+
+propositional_constraint ::= static_constraint   // static constraint does not assign its value to another variable
+		   			  | dynamic_constraint; // dynamic constraint assigns its value to another variable which then forms part of the variable list in states
+		   
+static_constraint ::=  CONSTRAINT_KW boolean_expr:be 
+		{: 
+		
+			Utilities.processBoolExpression(be);
+	
+		:} SEMI;   // e.g x < y;
+		
+		
+dynamic_constraint ::= DYNAMIC_KW CONSTRAINT_KW IDENTIFIER:id EQUALS expr:e 
+		{:
+			// the difference between this and the static_constraint is that the lvar is no longer none
+			Utilities.processDynamicExpression(id, e);
+		
+		:}  SEMI  //e.g sum = x + y;
+		
+		|  DYNAMIC_KW CONSTRAINT_KW IDENTIFIER:id EQUALS boolean_expr:be 
+		
+		{: 
+			Utilities.processDynamicExpression(id, be);
+		
+		:}  SEMI;   // sum = x < y;
+				   
+
+boolean_expr ::=  boolean_expr:be AND boolean_expr:t  {: RESULT = be.concat("&&").concat(t); :}
+			| boolean_expr:be OR boolean_expr:t {: RESULT = be.concat("||").concat(t); :}
+			| boolean_expr:be IMPLIES boolean_expr:t  {: RESULT = be.concat("->").concat(t); :}		
+			| expr:e DOUBLEEQUALS expr:t  {: RESULT = e.concat("==").concat(t); :}
+			| expr:e DOUBLEEQUALS boolean_expr:t  {: RESULT = e.concat("==").concat(t); :}
+			| expr:e LESSTHAN  expr:t  {: RESULT = e.concat("<").concat(t); :} 
+			| expr:e LESSTHANEQUAL expr:t  {: RESULT = e.concat("<=").concat(t); :} 
+			| expr:e GREATERTHAN  expr:t  {: RESULT = e.concat(">").concat(t); :}
+			| expr:e GREATERTHANEQUAL expr:t  {: RESULT = e.concat(">=").concat(t); :}
+			| expr:e NOTEQUAL expr:t  {: RESULT = e.concat("!=").concat(t); :}
+			| expr:e NOTEQUAL boolean_expr:t  {: RESULT = e.concat("!=").concat(t); :}	
+			| NOT boolean_expr:be {: RESULT = "!".concat(be); :}
+			| TRUE {: RESULT = "true"; :}
+			| FALSE {: RESULT = "false"; :}
+			| LPAREN boolean_expr:be RPAREN  {: RESULT = "(".concat(be).concat(")"); :};
+			
+			
+expr ::= expr:e PLUS term:t {: RESULT = e.concat("+").concat(t); :} 
+	  | expr:e MINUS term:t {: RESULT = e.concat("-").concat(t); :}
+	  | term:t {: RESULT = t; :}; 
+
+
+term ::= term:t MULTIPLY unary_expr:ue {: RESULT = t.concat("*").concat(ue); :}
+	  |term:t DIVIDE unary_expr:ue {: RESULT = t.concat("/").concat(ue); :} // this is one reason for making all these double
+	  |term:t MOD unary_expr:ue {: RESULT = t.concat("|").concat(ue); :}
+	  |unary_expr:ue {: RESULT = ue; :};
+
+//unary_expr ::= UNARYMINUS unary_second_expr:us
+//            {:RESULT = new Double(0 - us.doubleValue());:}
+//            |unary_second_expr:us
+//            {:RESULT = us;:};
+
+unary_expr ::= SQUAREROOT unary_expr:ue {: RESULT = "sqrt".concat(ue); :}
+           | SQUARE unary_expr:ue  {: RESULT = "sqr".concat(ue); :}
+           | leaf:l  {: RESULT = l; :};
+
+leaf ::= IDENTIFIER:id    // HERE'S THE MAIN DIFFERENCE BECAUSE WE ARE DEALING WITH VARIABLES   
+        {: 
+        RESULT = id;
+        Utilities.inConstraintIdentifiers.add(id); 
+        :}
+        | DOUBLE:id    // HERE'S THE MAIN DIFFERENCE BECAUSE WE ARE DEALING WITH VARIABLES   
+        {: 
+        	RESULT = id.toString(); 
+        :}
+	   | LPAREN expr:be RPAREN  {: RESULT = "(".concat(be).concat(")"); :};
+	   
+//its value will be either true or false
+			 
+// The fact: "child_one knows child_two_muddy = true", means that child_one sees that child_two is muddy. This facility in the grammar of allowing "fact ::= AGENT_IDENTIFIER KNOWS concrete_atom_expr;" and  "concrete_atom_expr ::= ATOM_IDENTIFIER '=' atom_expr;" will help us to specify which agent knows what in the case of public/non-public announcements
