@@ -1,2 +1,2 @@
 # VisualDEL
-A Fast Graphical Simulation and Model Checking Tool for Epistemic Logic Specifications.
+A Fast artificial intelligence reasoner system for solving knowledge-based logic puzzles.
