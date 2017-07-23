@@ -1,2 +1,2 @@
 # VisualDEL
-A Fast artificial intelligence reasoner system for solving knowledge-based logic puzzles.
+A fast artificial intelligence reasoner system for solving knowledge-based logic puzzles.
