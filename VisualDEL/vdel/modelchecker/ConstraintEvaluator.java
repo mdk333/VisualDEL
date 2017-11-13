@@ -1,7 +1,7 @@
 //
 // @author Maduka Attamah
 //
-// Copyright 2011-2015 Maduka Attamah
+// Copyright 2011-2012 Maduka Attamah
 //
 
 package vdel.modelchecker;
