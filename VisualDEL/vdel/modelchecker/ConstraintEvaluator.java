@@ -1,3 +1,9 @@
+//
+// @author Maduka Attamah
+//
+// Copyright 2011-2015 Maduka Attamah
+//
+
 package vdel.modelchecker;
 
 import vdel.utilities.CalcFunctions;
