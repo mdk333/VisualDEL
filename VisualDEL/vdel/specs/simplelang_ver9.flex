@@ -1,3 +1,9 @@
+//
+// @author Maduka Attamah
+//
+// Copyright 2011-2012 Maduka Attamah
+//
+
 /* JFlex example: part of Java language lexer specification */
 import java_cup.runtime.*;
 
